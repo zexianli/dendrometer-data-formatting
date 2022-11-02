@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Read data
-df = pd.read_csv("data/17/dend000.csv", header=[0, 1])
+df = pd.read_csv("data/18/dend00modified.csv", header=[0, 1])
 
 # Change column names
 df = df.rename(
@@ -10,7 +10,6 @@ df = df.rename(
 
 # Drop last column (it is empty)
 df = df.iloc[:, :-1]
-
 
 # Drop rows where button was pressed
 idxBtnPressed = df[df[('Button', 'Pressed?')] == 1].index
@@ -28,36 +27,39 @@ print(
 
 
 data = df.copy(deep=True)
+print(data.iloc[500:520])
 
 """
-Remove entries where the change in displacement is greater or equal to 500
+Remove entries where the change in displacement is greater or equal to 350
 """
 toRemove = []
 prevIdx, prevSerial = 0, data.iloc[0][('AS5311', 'Serial_Value')]
 initial, calculated, wrap = data.iloc[0][('AS5311', 'Serial_Value')], 0, 0
-curIdx, serialBeforeUpdate = 1, None
+curIdx = 1
 while curIdx < data.shape[0]:
+    # while curIdx < 10:
     curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
 
-    if serialBeforeUpdate != None:
-        prevSerial = serialBeforeUpdate
-        serialBeforeUpdate = None
-
-    if curIdx == 5467:
-        print(prevSerial, curSerial)
+    if (prevSerial > 3500 and curSerial < 200) or (prevSerial < 250 and curSerial > (4096 - 250)):
 
         # Wrap up
-    if prevSerial > 3500 and curSerial < 200:
-        print("-- Wrapped up", prevSerial, curSerial)
-        wrap += 4095
-    # Wrap down
-    elif prevSerial < 250 and curSerial > (4096 - 250):
-        print("-- Wrapped down", prevSerial, curSerial)
-        wrap -= 4095
+        if prevSerial > 3500 and curSerial < 200:
+            # print("-- Wrapped up", prevSerial, curSerial)
+            wrap += 4095
+        # Wrap down
+        elif prevSerial < 250 and curSerial > (4096 - 250):
+            # print("-- Wrapped down", prevSerial, curSerial)
+            wrap -= 4095
 
-    # Calculate the displacement data
-    curCalcSerial = prevSerial + wrap - initial
-    data.at[curIdx, 'Calculated'] = curCalcSerial
+        # Calculate the displacement data
+        curCalcSerial = curSerial + wrap - initial
+
+        # Data to use in the plot
+        data.at[curIdx, 'Calculated'] = curCalcSerial
+
+        prevSerial = curSerial
+        curIdx += 1
+        continue
 
     """
     We place a pointer at the current row and start the loop.
@@ -66,55 +68,46 @@ while curIdx < data.shape[0]:
     This could be changed to number of entries we remove before backing out
     since the data is collected every ~15 minutes
     """
-    if abs(curSerial - prevSerial) > 350:
-        data.at[curIdx, ('AS5311', 'Serial_Value')
-                ] = curCalcSerial - wrap + initial
+    # if abs(curSerial - prevSerial) > 350:
+    while abs(curSerial - prevSerial) > 350 and curIdx + 1 < data.shape[0]:
 
-        if curIdx in [5465, 5466, 5467]:
-            print(data.iloc[curIdx][('AS5311', 'Serial_Value')])
+        if curIdx > 500 and curIdx < 520:
+            print(prevSerial, curSerial)
 
-        # Update curSerial so we don't roll over this old value to next row
+        # Should update current row with the values of the previous row.
+        data.at[curIdx, ('AS5311', 'Serial_Value')] = prevSerial
+
+        # TODO: Need to fix the 'Calculated' column.
+        # Serial data is keeping the previous value during spikes
+        # But Calculated value is showing as NaN
+
+        # Prevent roll over of the current value over the next row
         # if curIdx + 1 < data.shape[0]:
-        #     serialBeforeUpdate = curSerial
-        #     curSerial = data.iloc[curIdx +
-        #                           1][('AS5311', 'Serial_Value')]
+        # curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
 
+        # -----------
+        # Calculate the displacement data
+        # curCalcSerial = prevSerial + wrap - initial
+
+        # # Data to use in the plot
+        # data.at[curIdx, 'Calculated'] = curCalcSerial
+        # -----------
+
+        # Test
+        curIdx += 1
+        curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
+
+    # Calculate the displacement data
+    curCalcSerial = prevSerial + wrap - initial
+
+    # Data to use in the plot
+    data.at[curIdx, 'Calculated'] = curCalcSerial
     prevSerial = curSerial
-
     curIdx += 1
 
 
-print(data.iloc[5462:5470])
-# data.drop(toRemove, inplace=True)
-# data.reset_index(drop=True, inplace=True)
-# print(
-#     f"-- Removed {len(toRemove)} rows where data spiked.")
-
-
-# Durring itertuples iteration, _9 is the name for Serial_Value
-# data.loc[1:] returns a copy of the data starting at index 1
-
-# initial, calculated, wrap = data.iloc[0][('AS5311', 'Serial_Value')], 0, 0
-# prevSerial = data.iloc[0][('AS5311', 'Serial_Value')]
-# data.at[0, 'Calculated'] = 0
-# ROWS = data.loc[1:].itertuples()
-# for row in ROWS:
-#     curIdx = getattr(row, "Index")
-#     curSerial = getattr(row, "_9")
-
-#     # Wrap up
-#     if prevSerial > 3950 and curSerial < 200:
-#         print("-- Wrapped up", prevSerial, curSerial)
-#         wrap += 4095
-#     # Wrap down
-#     elif prevSerial < 250 and curSerial > (4096 - 250):
-#         print("-- Wrapped down", prevSerial, curSerial)
-#         wrap -= 4095
-
-#     # Calculate the displacement data
-#     data.at[curIdx, 'Calculated'] = curSerial + wrap - initial
-
-#     prevSerial = curSerial
+print(data.iloc[500:530])
+# print(data.head(10))
 
 # Create a new column and fill with displacement from previous row to this row.
 data["Change"] = data[('AS5311', 'Serial_Value')].diff()
@@ -131,9 +124,8 @@ plt.show()
 plt.close()
 
 
-fig2 = plt.subplot()
-fig2.hist(data['Change'], bins=100)
-plt.xlim([-75, 75])
-plt.yscale('log')
-
-plt.show()
+# fig2 = plt.subplot()
+# fig2.hist(data['Change'], bins=100)
+# plt.xlim([-75, 75])
+# plt.yscale('log')
+# plt.show()
