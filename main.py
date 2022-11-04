@@ -68,8 +68,9 @@ while curIdx < data.shape[0]:
     This could be changed to number of entries we remove before backing out
     since the data is collected every ~15 minutes
     """
+    overrides = 0
     # if abs(curSerial - prevSerial) > 350:
-    while abs(curSerial - prevSerial) > 350 and curIdx + 1 < data.shape[0]:
+    while abs(curSerial - prevSerial) > 350 and curIdx + 1 < data.shape[0] and overrides < 25:
 
         if curIdx > 500 and curIdx < 520:
             print(prevSerial, curSerial)
@@ -80,10 +81,6 @@ while curIdx < data.shape[0]:
         # TODO: Need to fix the 'Calculated' column.
         # Serial data is keeping the previous value during spikes
         # But Calculated value is showing as NaN
-
-        # Prevent roll over of the current value over the next row
-        # if curIdx + 1 < data.shape[0]:
-        # curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
 
         # -----------
         # Calculate the displacement data
@@ -96,6 +93,7 @@ while curIdx < data.shape[0]:
         # Test
         curIdx += 1
         curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
+        overrides += 1
 
     # Calculate the displacement data
     curCalcSerial = prevSerial + wrap - initial
@@ -115,8 +113,9 @@ data["Change"] = data[('AS5311', 'Serial_Value')].diff()
 # Plot stuff
 fig1 = plt.subplot()
 fig1.plot(data['Calculated'])
+fig1.plot(data[('AS5311', 'Serial_Value')])
 fig1.plot(df[('AS5311', 'Serial_Value')])
-fig1.legend(['Calculated', 'Raw'])
+fig1.legend(['Calculated',  'Calculated raw', 'Raw'])
 fig1.set_xlabel("Time")
 fig1.set_ylabel("Displacement")
 fig1.set_xticklabels([])
