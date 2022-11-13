@@ -27,7 +27,7 @@ print(
 
 
 data = df.copy(deep=True)
-print(data.iloc[500:520])
+# print(data.iloc[500:520])
 
 """
 Remove entries where the change in displacement is greater or equal to 350
@@ -37,18 +37,22 @@ prevIdx, prevSerial = 0, data.iloc[0][('AS5311', 'Serial_Value')]
 initial, calculated, wrap = data.iloc[0][('AS5311', 'Serial_Value')], 0, 0
 curIdx = 1
 while curIdx < data.shape[0]:
-    # while curIdx < 10:
     curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
 
-    if (prevSerial > 3500 and curSerial < 200) or (prevSerial < 250 and curSerial > (4096 - 250)):
+    change = abs((curSerial - prevSerial)/(curIdx - prevIdx))
+    data.at[curIdx, 'Change'] = change
+
+    # if (prevSerial > 3500 and curSerial < 200) or (prevSerial < 250 and curSerial > (4096 - 250)):
+    if change < 200 or change > 3800:
 
         # Wrap up
         if prevSerial > 3500 and curSerial < 200:
-            # print("-- Wrapped up", prevSerial, curSerial)
+            # print("-- Wrapped up", prevSerial, curSerial, change)
             wrap += 4095
+
         # Wrap down
         elif prevSerial < 250 and curSerial > (4096 - 250):
-            # print("-- Wrapped down", prevSerial, curSerial)
+            # print("-- Wrapped down", prevSerial, curSerial, change)
             wrap -= 4095
 
         # Calculate the displacement data
@@ -58,6 +62,7 @@ while curIdx < data.shape[0]:
         data.at[curIdx, 'Calculated'] = curCalcSerial
 
         prevSerial = curSerial
+        prevIdx = curIdx
         curIdx += 1
         continue
 
@@ -69,11 +74,7 @@ while curIdx < data.shape[0]:
     since the data is collected every ~15 minutes
     """
     overrides = 0
-    # if abs(curSerial - prevSerial) > 350:
-    while abs(curSerial - prevSerial) > 350 and curIdx + 1 < data.shape[0] and overrides < 25:
-
-        if curIdx > 500 and curIdx < 520:
-            print(prevSerial, curSerial)
+    while change >= 200 and change <= 3800 and curIdx + 1 < data.shape[0] and overrides < 25:
 
         # Should update current row with the values of the previous row.
         data.at[curIdx, ('AS5311', 'Serial_Value')] = prevSerial
@@ -82,15 +83,6 @@ while curIdx < data.shape[0]:
         # Serial data is keeping the previous value during spikes
         # But Calculated value is showing as NaN
 
-        # -----------
-        # Calculate the displacement data
-        # curCalcSerial = prevSerial + wrap - initial
-
-        # # Data to use in the plot
-        # data.at[curIdx, 'Calculated'] = curCalcSerial
-        # -----------
-
-        # Test
         curIdx += 1
         curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
         overrides += 1
@@ -101,14 +93,15 @@ while curIdx < data.shape[0]:
     # Data to use in the plot
     data.at[curIdx, 'Calculated'] = curCalcSerial
     prevSerial = curSerial
+    prevIdx = curIdx
     curIdx += 1
 
 
-print(data.iloc[500:530])
+print(data.iloc[500:550])
 # print(data.head(10))
 
 # Create a new column and fill with displacement from previous row to this row.
-data["Change"] = data[('AS5311', 'Serial_Value')].diff()
+# data["Change"] = data[('AS5311', 'Serial_Value')].diff()
 
 # Plot stuff
 fig1 = plt.subplot()
@@ -125,6 +118,6 @@ plt.close()
 
 # fig2 = plt.subplot()
 # fig2.hist(data['Change'], bins=100)
-# plt.xlim([-75, 75])
+# plt.xlim([-500, 500])
 # plt.yscale('log')
 # plt.show()
