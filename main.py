@@ -43,16 +43,16 @@ while curIdx < data.shape[0]:
     data.at[curIdx, 'Change'] = change
 
     # if (prevSerial > 3500 and curSerial < 200) or (prevSerial < 250 and curSerial > (4096 - 250)):
-    if change < 200 or change > 3800:
+    if change > 3800:
 
         # Wrap up
         if prevSerial > 3500 and curSerial < 200:
-            # print("-- Wrapped up", prevSerial, curSerial, change)
+            print("-- Wrapped up", prevSerial, curSerial, change)
             wrap += 4095
 
         # Wrap down
         elif prevSerial < 250 and curSerial > (4096 - 250):
-            # print("-- Wrapped down", prevSerial, curSerial, change)
+            print("-- Wrapped down", prevSerial, curSerial, change)
             wrap -= 4095
 
         # Calculate the displacement data
