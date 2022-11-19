@@ -1,8 +1,11 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
+pd.options.display.max_rows = 200
+
+
 # Read data
-df = pd.read_csv("data/18/dend00modified.csv", header=[0, 1])
+df = pd.read_csv("data/18/dend00.csv", header=[0, 1])
 
 # Change column names
 df = df.rename(
@@ -10,6 +13,12 @@ df = df.rename(
 
 # Drop last column (it is empty)
 df = df.iloc[:, :-1]
+
+# print(df.head())
+date_time_combined = pd.to_datetime(
+    df[("Timestamp", "date")] + ' ' + df[("Timestamp", "time")])
+df.drop(columns=[("Timestamp", "date"), ("Timestamp", "time")], inplace=True)
+df.insert(2, "Time", date_time_combined)
 
 # Drop rows where button was pressed
 idxBtnPressed = df[df[('Button', 'Pressed?')] == 1].index
@@ -27,32 +36,34 @@ print(
 
 
 data = df.copy(deep=True)
-# print(data.iloc[500:520])
+
+print(data.iloc[960:1100][('AS5311', 'Serial_Value')])
+
+# print(data.head)
 
 """
-Remove entries where the change in displacement is greater or equal to 350
+Remove entries where the change in displacement is greater or equal to
 """
 toRemove = []
 prevIdx, prevSerial = 0, data.iloc[0][('AS5311', 'Serial_Value')]
 initial, calculated, wrap = data.iloc[0][('AS5311', 'Serial_Value')], 0, 0
+out_of_while = 0
 curIdx = 1
 while curIdx < data.shape[0]:
     curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
 
-    change = abs((curSerial - prevSerial)/(curIdx - prevIdx))
+    change = (curSerial - prevSerial)/(curIdx - prevIdx)
     data.at[curIdx, 'Change'] = change
 
-    # if (prevSerial > 3500 and curSerial < 200) or (prevSerial < 250 and curSerial > (4096 - 250)):
-    if change > 3800:
-
+    if abs(change) > 3800:
         # Wrap up
-        if prevSerial > 3500 and curSerial < 200:
-            print("-- Wrapped up", prevSerial, curSerial, change)
+        if change < 0:
+            # print("-- Wrapped up", prevSerial, curSerial, change)
             wrap += 4095
 
         # Wrap down
-        elif prevSerial < 250 and curSerial > (4096 - 250):
-            print("-- Wrapped down", prevSerial, curSerial, change)
+        elif change > 0:
+            # print("-- Wrapped down", prevSerial, curSerial, change)
             wrap -= 4095
 
         # Calculate the displacement data
@@ -74,18 +85,36 @@ while curIdx < data.shape[0]:
     since the data is collected every ~15 minutes
     """
     overrides = 0
-    while change >= 200 and change <= 3800 and curIdx + 1 < data.shape[0] and overrides < 25:
+    while abs(change) >= 250 and curIdx + 1 < data.shape[0] and overrides < 100:
+        # # data.at[curIdx, ('AS5311', 'Serial_Value')] = prevSerial
+        # # data.at[curIdx, ('Change')] = 0
 
-        # Should update current row with the values of the previous row.
+        # # Calculate the displacement data
+        # curCalcSerial = prevSerial + wrap - initial
+        # data.at[curIdx, 'Calculated'] = curCalcSerial
+
+        # -------------
         data.at[curIdx, ('AS5311', 'Serial_Value')] = prevSerial
+        prevCalculated = float(data.iloc[prevIdx][('Calculated')])
+        # if curIdx > 960 and curIdx < 1000:
+        #     print(prevCalculated)
+        data.at[curIdx, ('Calculated')] = prevCalculated
 
-        # TODO: Need to fix the 'Calculated' column.
-        # Serial data is keeping the previous value during spikes
-        # But Calculated value is showing as NaN
+        # curCalcSerial = prevSerial + wrap - initial
 
-        curIdx += 1
-        curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
+        # data.at[curIdx, 'Calculated'] = curCalcSerial
+        # -------------
+
+        toRemove.append(curIdx)
+
+        curIdx = curIdx + 1
         overrides += 1
+        curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
+
+        change = (curSerial - prevSerial)
+
+    if abs(change) < 250:
+        data.at[curIdx, ('Change')] = change
 
     # Calculate the displacement data
     curCalcSerial = prevSerial + wrap - initial
@@ -96,22 +125,21 @@ while curIdx < data.shape[0]:
     prevIdx = curIdx
     curIdx += 1
 
-
-print(data.iloc[500:550])
+print(toRemove)
+print(data.iloc[960:1100][('AS5311', 'Serial_Value')],
+      data.iloc[960:1100][('Calculated')])
+# print(data.iloc[500:540][('AS5311', 'Serial_Value')], "\n",
+#       data.iloc[500:540][('Change')])
 # print(data.head(10))
-
-# Create a new column and fill with displacement from previous row to this row.
-# data["Change"] = data[('AS5311', 'Serial_Value')].diff()
 
 # Plot stuff
 fig1 = plt.subplot()
-fig1.plot(data['Calculated'])
-fig1.plot(data[('AS5311', 'Serial_Value')])
-fig1.plot(df[('AS5311', 'Serial_Value')])
-fig1.legend(['Calculated',  'Calculated raw', 'Raw'])
+fig1.plot(data["Time"], data['Calculated'])
+fig1.plot(df["Time"], df[('AS5311', 'Serial_Value')])
+fig1.legend(['Calculated', 'Raw'])
 fig1.set_xlabel("Time")
 fig1.set_ylabel("Displacement")
-fig1.set_xticklabels([])
+# fig1.set_xticklabels([])
 plt.show()
 plt.close()
 
