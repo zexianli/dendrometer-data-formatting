@@ -5,7 +5,7 @@ pd.options.display.max_rows = 200
 
 
 # Read data
-df = pd.read_csv("data/18/dend00.csv", header=[0, 1])
+df = pd.read_csv("data/18/dend00modified.csv", header=[0, 1])
 
 # Change column names
 df = df.rename(
@@ -19,6 +19,8 @@ date_time_combined = pd.to_datetime(
     df[("Timestamp", "date")] + ' ' + df[("Timestamp", "time")])
 df.drop(columns=[("Timestamp", "date"), ("Timestamp", "time")], inplace=True)
 df.insert(2, "Time", date_time_combined)
+
+original = df.copy(deep=True)
 
 # Drop rows where button was pressed
 idxBtnPressed = df[df[('Button', 'Pressed?')] == 1].index
@@ -37,7 +39,7 @@ print(
 
 data = df.copy(deep=True)
 
-print(data.iloc[960:1100][('AS5311', 'Serial_Value')])
+# print(data.iloc[960:1100][('AS5311', 'Serial_Value')])
 
 # print(data.head)
 
@@ -54,6 +56,30 @@ while curIdx < data.shape[0]:
 
     change = (curSerial - prevSerial)/(curIdx - prevIdx)
     data.at[curIdx, 'Change'] = change
+
+    curCalcSerial = prevSerial + wrap - initial
+
+    """
+    We place a pointer at the current row and start the loop.
+    The loop will keep going until it finds a displacement that is relatively close to the refence.
+
+    This could be changed to number of entries we remove before backing out
+    since the data is collected every ~15 minutes
+    """
+    overrides = 0
+    # Increased the number of overrides from 30 -> 100
+    while abs(change) >= 250 and abs(change) <= 3800 and curIdx + 1 < data.shape[0] and overrides < 30:
+
+        data.at[curIdx, ('AS5311', 'Serial_Value')] = prevSerial
+        prevCalculated = float(data.iloc[prevIdx][('Calculated')])
+
+        data.at[curIdx, ('Calculated')] = prevCalculated
+
+        curIdx = curIdx + 1
+        overrides += 1
+        curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
+
+        change = (curSerial - prevSerial)
 
     if abs(change) > 3800:
         # Wrap up
@@ -72,71 +98,33 @@ while curIdx < data.shape[0]:
         # Data to use in the plot
         data.at[curIdx, 'Calculated'] = curCalcSerial
 
-        prevSerial = curSerial
-        prevIdx = curIdx
-        curIdx += 1
-        continue
+        # prevSerial = curSerial
+        # prevIdx = curIdx
+        # curIdx += 1
+    else:
+        # Data to use in the plot
+        data.at[curIdx, 'Calculated'] = curCalcSerial
+        # prevSerial = curSerial
+        # prevIdx = curIdx
+        # curIdx += 1
 
-    """
-    We place a pointer at the current row and start the loop.
-    The loop will keep going until it finds a displacement that is relatively close to the refence.
-
-    This could be changed to number of entries we remove before backing out
-    since the data is collected every ~15 minutes
-    """
-    overrides = 0
-    while abs(change) >= 250 and curIdx + 1 < data.shape[0] and overrides < 100:
-        # # data.at[curIdx, ('AS5311', 'Serial_Value')] = prevSerial
-        # # data.at[curIdx, ('Change')] = 0
-
-        # # Calculate the displacement data
-        # curCalcSerial = prevSerial + wrap - initial
-        # data.at[curIdx, 'Calculated'] = curCalcSerial
-
-        # -------------
-        data.at[curIdx, ('AS5311', 'Serial_Value')] = prevSerial
-        prevCalculated = float(data.iloc[prevIdx][('Calculated')])
-        # if curIdx > 960 and curIdx < 1000:
-        #     print(prevCalculated)
-        data.at[curIdx, ('Calculated')] = prevCalculated
-
-        # curCalcSerial = prevSerial + wrap - initial
-
-        # data.at[curIdx, 'Calculated'] = curCalcSerial
-        # -------------
-
-        toRemove.append(curIdx)
-
-        curIdx = curIdx + 1
-        overrides += 1
-        curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
-
-        change = (curSerial - prevSerial)
-
-    if abs(change) < 250:
-        data.at[curIdx, ('Change')] = change
-
-    # Calculate the displacement data
-    curCalcSerial = prevSerial + wrap - initial
-
-    # Data to use in the plot
-    data.at[curIdx, 'Calculated'] = curCalcSerial
     prevSerial = curSerial
     prevIdx = curIdx
     curIdx += 1
 
-print(toRemove)
 print(data.iloc[960:1100][('AS5311', 'Serial_Value')],
       data.iloc[960:1100][('Calculated')])
 # print(data.iloc[500:540][('AS5311', 'Serial_Value')], "\n",
 #       data.iloc[500:540][('Change')])
 # print(data.head(10))
+print(toRemove)
 
 # Plot stuff
 fig1 = plt.subplot()
-fig1.plot(data["Time"], data['Calculated'])
+fig1.plot(original["Time"], original[('AS5311', 'Serial_Value')])
 fig1.plot(df["Time"], df[('AS5311', 'Serial_Value')])
-fig1.legend(['Calculated', 'Raw'])
+fig1.plot(data["Time"], data['Calculated'])
+fig1.legend(['Original', 'Simple clean', 'Calculated'])
 fig1.set_xlabel("Time")
 fig1.set_ylabel("Displacement")
 # fig1.set_xticklabels([])
