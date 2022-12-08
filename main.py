@@ -5,7 +5,7 @@ pd.options.display.max_rows = 200
 
 
 # Read data
-df = pd.read_csv("data/18/dend00modified.csv", header=[0, 1])
+df = pd.read_csv("data/28/dend00.csv", header=[0, 1])
 
 # Change column names
 df = df.rename(
@@ -20,66 +20,50 @@ date_time_combined = pd.to_datetime(
 df.drop(columns=[("Timestamp", "date"), ("Timestamp", "time")], inplace=True)
 df.insert(2, "Time", date_time_combined)
 
-original = df.copy(deep=True)
-
-# # Drop rows where button was pressed
-# idxBtnPressed = df[df[('Button', 'Pressed?')] == 1].index
-# df.drop(idxBtnPressed, inplace=True)
-# print(f"-- Dropped {idxBtnPressed.shape[0]} rows where button was pressed.")
-
-# # Drop rows where status color was neither green nor yellow.
-# idxColorStatus = df[(df[('Status', 'Color')] != "Green") &
-#                     (df[('Status', 'Color')] != "Yellow")].index
-# df.drop(idxColorStatus, inplace=True)
-# print(
-#     f"-- Dropped {idxColorStatus.shape[0]} rows where status color was neither green nor yellow.")
-
-# df.reset_index(drop=True, inplace=True)
 data = df.copy(deep=True)
 
 toRemove = []
-prevIdx, prevSerial = 0, data.iloc[0][('AS5311', 'Serial_Value')]
+prev_idx, prev_serial = 0, data.iloc[0][('AS5311', 'Serial_Value')]
 initial, calculated, wrap = data.iloc[0][('AS5311', 'Serial_Value')], 0, 0
 data.at[0, 'Calculated'] = 0
 
-curIdx = 1
-while curIdx < data.shape[0]:
-    curSerial = data.iloc[curIdx][('AS5311', 'Serial_Value')]
+cur_idx = 1
+while cur_idx < data.shape[0]:
+    cur_serial = data.iloc[cur_idx][('AS5311', 'Serial_Value')]
 
-    change = (curSerial - prevSerial)/(curIdx - prevIdx)
-    data.at[curIdx, 'Change'] = change
+    change = (cur_serial - prev_serial)/(cur_idx - prev_idx)
+    data.at[cur_idx, 'Change'] = change
 
-    curCalcSerial = prevSerial + wrap - initial
+    calculated_serial_data = prev_serial + wrap - initial
 
-    if abs(change) > 3800:
+    if abs(change) > 2000:
         # Wrap up
         if change < 0:
-            print("-- Wrapped up", prevSerial, curSerial, change)
+            print("-- Wrapped up", prev_serial, cur_serial, change)
             wrap += 4095
 
         # Wrap down
         elif change > 0:
-            print("-- Wrapped down", prevSerial, curSerial, change)
+            print("-- Wrapped down", prev_serial, cur_serial, change)
             wrap -= 4095
 
         # Calculate the displacement data
-        curCalcSerial = curSerial + wrap - initial
+        calculated_serial_data = cur_serial + wrap - initial
 
     # Data to use in the plot
-    data.at[curIdx, 'Calculated'] = curCalcSerial
+    data.at[cur_idx, 'Calculated'] = calculated_serial_data
 
-    prevSerial = curSerial
-    prevIdx = curIdx
-    curIdx += 1
+    prev_serial = cur_serial
+    prev_idx = cur_idx
+    cur_idx += 1
 
 # Plot stuff
 fig1 = plt.subplot()
+fig1.set_title("Dendrometer #1")
 fig1.plot(df["Time"], df[('AS5311', 'Serial_Value')])
 fig1.plot(data["Time"], data['Calculated'])
-# fig1.legend(['Original', 'Simple clean', 'Calculated'])
-fig1.legend(['Simple clean', 'Calculated'])
+fig1.legend(['Raw data', 'Over/Under flow adjusted'])
 fig1.set_xlabel("Time")
-fig1.set_ylabel("Displacement")
+fig1.set_ylabel("Displacement (serial value)")
 # fig1.set_xticklabels([])
 plt.show()
-plt.close()
