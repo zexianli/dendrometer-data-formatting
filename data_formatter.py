@@ -1,6 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
+from pathlib import Path
 from collections import defaultdict
 
 
@@ -16,17 +16,19 @@ class DataFormatter:
         min_file_size -- the minimum valid size for a file in bytes (default 1000000 bytes)
         """
 
-        cur_path = os.getcwd()
-        data_path = cur_path + "/data"
-        folders = os.listdir(data_path)
+        cur_path = Path.cwd()
+        data_path = Path.joinpath(cur_path, "data")
+        folders = [folder for folder in data_path.iterdir() if folder.is_dir()]
         self.folder_file_map = defaultdict(list)
 
         for folder in folders:
-            files_path = os.path.join(data_path, folder)
-            files = os.listdir(files_path)
+            files_path = Path.joinpath(data_path, folder)
+            files = [file for file in Path(files_path).glob("*.csv")]
 
             for file in files:
-                file_size = os.stat(os.path.join(files_path, file)).st_size
+                file_size = Path(Path.joinpath(
+                    files_path, file)).stat().st_size
+                print(file_size)
 
                 if file_size > min_file_size:
                     self.folder_file_map[folder].append(file)
@@ -36,7 +38,9 @@ class DataFormatter:
 
 def main():
     formatter = DataFormatter()
-    print(formatter.find_valid_files())
+    files = formatter.find_valid_files()
+    for folder, file in files.items():
+        print(folder, ": ", file)
 
 
 if __name__ == "__main__":
