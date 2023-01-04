@@ -49,21 +49,27 @@ class DataFormatter:
 
         return times
 
-    def iter_files(self, folders: dict):
+    def l1_formatting(self, folders: dict):
         for folder in folders.keys():
             print(folder)
             for file in folders[folder]:
                 df = pd.read_csv(Path.as_posix(file), header=[0, 1])
-                self.create_plot(df, file)
+                df = self._initial_formatting(df)
+                df = self._fix_timestamp(df)
+                df = self.adjust_flow(df)
 
-    def create_plot(self, df: pd.DataFrame, filename):
+                self.save_plot(df, file)
+
+    def _initial_formatting(self, df):
         # Change column names
         df = df.rename(
             columns={'Unnamed: 1_level_0': 'ID', 'Unnamed: 3_level_0': 'Timestamp', 'Unnamed: 7_level_0': 'SHT31D'})
 
-        # Drop last column (it is empty)
+        # Drop last column because it is empty
         df = df.iloc[:, :-1]
+        return df
 
+    def _fix_timestamp(self, df):
         date_time_combined = pd.to_datetime(
             df[("Timestamp", "date")] +
             ' ' +
@@ -74,22 +80,19 @@ class DataFormatter:
                 ("Timestamp", "time")], inplace=True)
 
         df.insert(2, "Time", date_time_combined)
+        return df
 
-        data = df.copy(deep=True)
-
-        toRemove = []
-
-        prev_idx, prev_serial = 0, data.iloc[0][('AS5311', 'Serial_Value')]
-        initial, calculated, wrap = data.iloc[0][(
-            'AS5311', 'Serial_Value')], 0, 0
-        data.at[0, 'Calculated'] = 0
+    def adjust_flow(self, df: pd.DataFrame) -> pd.DataFrame:
+        prev_idx, prev_serial = 0, df.iloc[0][('AS5311', 'Serial_Value')]
+        initial, wrap = df.iloc[0][('AS5311', 'Serial_Value')], 0
+        df.at[0, 'Calculated'] = 0
 
         cur_idx = 1
-        while cur_idx < data.shape[0]:
-            cur_serial = data.iloc[cur_idx][('AS5311', 'Serial_Value')]
+        while cur_idx < df.shape[0]:
+            cur_serial = df.iloc[cur_idx][('AS5311', 'Serial_Value')]
 
             change = (cur_serial - prev_serial)/(cur_idx - prev_idx)
-            data.at[cur_idx, 'Change'] = change
+            df.at[cur_idx, 'Change'] = change
 
             calculated_serial_data = prev_serial + wrap - initial
 
@@ -108,12 +111,15 @@ class DataFormatter:
             calculated_serial_data = cur_serial + wrap - initial
 
             # Data to use in the plot
-            data.at[cur_idx, 'Calculated'] = calculated_serial_data
+            df.at[cur_idx, 'Calculated'] = calculated_serial_data
 
             prev_serial = cur_serial
             prev_idx = cur_idx
             cur_idx += 1
 
+        return df
+
+    def save_plot(self, df: pd.DataFrame, filename) -> None:
         filename = filename.with_suffix('')
         dend_file_name = str(filename).split("/")[-2:]
         plot_title = f"Dendrometer_{dend_file_name[0]}_{dend_file_name[1]}"
@@ -122,18 +128,19 @@ class DataFormatter:
         fig1 = plt.subplot()
         fig1.set_title(plot_title)
         fig1.plot(df["Time"], df[('AS5311', 'Serial_Value')])
-        fig1.plot(data["Time"], data['Calculated'])
+        fig1.plot(df["Time"], df['Calculated'])
         fig1.legend(['Raw data', 'Over/Under flow adjusted'])
         fig1.set_xlabel("Time")
         fig1.set_ylabel("Displacement (serial value)")
-        plt.savefig("plots/" + plot_title + ".pdf")
+        plt.savefig(f"data/{dend_file_name[0]}/{dend_file_name[1]}.pdf")
 
 
 def main():
     formatter = DataFormatter()
     files = formatter.find_valid_files()
     formatter.get_time_differences(files)
-    formatter.iter_files(files)
+
+    formatter.l1_formatting(files)
 
 if __name__ == "__main__":
     main()
