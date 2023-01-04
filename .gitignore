@@ -1,4 +1,9 @@
 dendrometer-data-formatting.code-workspace
+data
+data.zip
+test_data
+plots
+.vscode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
