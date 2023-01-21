@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict
 import linecache
+from plotter import Plotter
 
 
 class DataFormatter:
@@ -50,6 +51,8 @@ class DataFormatter:
         return times
 
     def l1_formatting(self, folders: dict):
+        dfs = {}
+
         for folder in folders.keys():
             print(folder)
             for file in folders[folder]:
@@ -58,7 +61,21 @@ class DataFormatter:
                 df = self._fix_timestamp(df)
                 df = self.adjust_flow(df)
 
-                self.save_plot(df, file)
+                dendrometer_id = str(file).split("/")[-2]
+                dfs[dendrometer_id] = (file, df.copy())
+
+        plotter = Plotter()
+        pair_mapping = plotter.get_pair_mapping()
+
+        for _, (filename, df) in dfs.items():
+            plotter.save_plot(filename, df)
+
+        for pair in pair_mapping.values():
+            dend1, dend2 = pair
+            dend1, dend2 = str(dend1), str(dend2)
+
+            if dend1 in dfs and dend2 in dfs:
+                plotter.save_plot_pair(dfs[str(dend1)], dfs[str(dend2)])
 
     def _initial_formatting(self, df):
         # Change column names
@@ -139,8 +156,8 @@ def main():
     formatter = DataFormatter()
     files = formatter.find_valid_files()
     formatter.get_time_differences(files)
-
     formatter.l1_formatting(files)
+
 
 if __name__ == "__main__":
     main()
