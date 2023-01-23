@@ -106,11 +106,17 @@ class DataFormatter:
         print("--------------------------------------------------------")
         print(df.head(2))
 
+        """
+        dt.tz_localize(tz="GMT"): assigns the current time stamp to be in GMT
+        dt.tz_convert(tz="America/Los_Angeles"): converts GMT to Pacific Time
+        dt.tz_localize(None): strips it back down to naive timestamp so it doesn't have the -7 at the end
+        """
         df["Time"] = pd.to_datetime(df["Time"])  \
                        .dt.tz_localize(tz="GMT") \
-                       .dt.tz_convert(tz="America/Los_Angeles")
+                       .dt.tz_convert(tz="America/Los_Angeles") \
+                       .dt.tz_localize(None)
         print(df.head(2))
-        print(df.dtypes)
+        # print(df.dtypes)
         print("--------------------------------------------------------")
 
         return df
