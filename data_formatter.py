@@ -8,8 +8,14 @@ from plotter import Plotter
 
 class DataFormatter:
     def __init__(self) -> None:
-        self.time_offset = 0
+        self.time_offset = {}
         print("Constructor")
+
+    def load_deployment_time(self) -> dict:
+        cur_path = Path.cwd()
+        timetable_file = Path.joinpath(cur_path, "data", "deployment_time.csv")
+        deployment_time_df = pd.read_csv(timetable_file)
+        deployment_time_df = deployment_time_df.fillna("")
 
     def find_valid_files(self, min_file_size: int = 1000000) -> dict:
         """
@@ -59,23 +65,23 @@ class DataFormatter:
                 df = pd.read_csv(Path.as_posix(file), header=[0, 1])
                 df = self._initial_formatting(df)
                 df = self._fix_timestamp(df)
-                df = self.adjust_flow(df)
+                # df = self.adjust_flow(df)
 
-                dendrometer_id = str(file).split("/")[-2]
-                dfs[dendrometer_id] = (file, df.copy())
+                # dendrometer_id = str(file).split("/")[-2]
+                # dfs[dendrometer_id] = (file, df.copy())
 
-        plotter = Plotter()
-        pair_mapping = plotter.get_pair_mapping()
+        # plotter = Plotter()
+        # pair_mapping = plotter.get_pair_mapping()
 
-        for _, (filename, df) in dfs.items():
-            plotter.save_plot(filename, df)
+        # for _, (filename, df) in dfs.items():
+        #     plotter.save_plot(filename, df)
 
-        for pair in pair_mapping.values():
-            dend1, dend2 = pair
-            dend1, dend2 = str(dend1), str(dend2)
+        # for pair in pair_mapping.values():
+        #     dend1, dend2 = pair
+        #     dend1, dend2 = str(dend1), str(dend2)
 
-            if dend1 in dfs and dend2 in dfs:
-                plotter.save_plot_pair(dfs[str(dend1)], dfs[str(dend2)])
+        #     if dend1 in dfs and dend2 in dfs:
+        #         plotter.save_plot_pair(dfs[str(dend1)], dfs[str(dend2)])
 
     def _initial_formatting(self, df):
         # Change column names
@@ -86,7 +92,7 @@ class DataFormatter:
         df = df.iloc[:, :-1]
         return df
 
-    def _fix_timestamp(self, df):
+    def _fix_timestamp(self, df: pd.DataFrame):
         date_time_combined = pd.to_datetime(
             df[("Timestamp", "date")] +
             ' ' +
@@ -97,6 +103,16 @@ class DataFormatter:
                 ("Timestamp", "time")], inplace=True)
 
         df.insert(2, "Time", date_time_combined)
+        print("--------------------------------------------------------")
+        print(df.head(2))
+
+        df["Time"] = pd.to_datetime(df["Time"])  \
+                       .dt.tz_localize(tz="GMT") \
+                       .dt.tz_convert(tz="America/Los_Angeles")
+        print(df.head(2))
+        print(df.dtypes)
+        print("--------------------------------------------------------")
+
         return df
 
     def adjust_flow(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -155,8 +171,9 @@ class DataFormatter:
 def main():
     formatter = DataFormatter()
     files = formatter.find_valid_files()
-    formatter.get_time_differences(files)
+    # formatter.get_time_differences(files)
     formatter.l1_formatting(files)
+    # formatter.load_deployment_time()
 
 
 if __name__ == "__main__":
