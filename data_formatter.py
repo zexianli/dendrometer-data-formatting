@@ -8,7 +8,7 @@ from plotter import Plotter
 
 class DataFormatter:
     def __init__(self) -> None:
-        self.time_offset = {}
+        self.deployment_time_map = {}
         print("Constructor")
 
     def load_deployment_time(self) -> dict:
@@ -16,6 +16,16 @@ class DataFormatter:
         timetable_file = Path.joinpath(cur_path, "data", "deployment_time.csv")
         deployment_time_df = pd.read_csv(timetable_file)
         deployment_time_df = deployment_time_df.fillna("")
+
+        for index, row in deployment_time_df.iterrows():
+            if not row["Start Date"] or not row["Start Time"]:
+                continue
+            timestamp = pd.to_datetime(row["Start Date"] +
+                                       ' ' +
+                                       row["Start Time"])
+
+            timestamp = timestamp.tz_localize(None)
+            self.deployment_time_map[str(row["Device ID"])] = timestamp
 
     def find_valid_files(self, min_file_size: int = 1000000) -> dict:
         """
@@ -42,46 +52,37 @@ class DataFormatter:
 
         return folder_file_map
 
-    def get_time_differences(self, folders: dict):
-        times = []
-        for files in folders.values():
-            for file in files:
-                first_entry = linecache.getline(Path.as_posix(file), 3)
-                linecache.clearcache()
-
-                time_entry = first_entry.split(",")[2:4]
-                cur_time = pd.to_datetime(time_entry[0] + " " + time_entry[1])
-                print(cur_time)
-                times.append(cur_time)
-
-        return times
+    def get_time_difference(self, df: pd.DataFrame, deploy_time: pd.Timestamp):
+        return df.head(1)["Time"] - deploy_time
 
     def l1_formatting(self, folders: dict):
         dfs = {}
+        self.load_deployment_time()
 
         for folder in folders.keys():
             print(folder)
             for file in folders[folder]:
+                dendrometer_id = str(file).split("/")[-2]
+
                 df = pd.read_csv(Path.as_posix(file), header=[0, 1])
                 df = self._initial_formatting(df)
-                df = self._fix_timestamp(df)
-                # df = self.adjust_flow(df)
+                df = self._fix_timestamp(df, dendrometer_id)
+                df = self.adjust_flow(df)
 
-                # dendrometer_id = str(file).split("/")[-2]
-                # dfs[dendrometer_id] = (file, df.copy())
+                dfs[dendrometer_id] = (file, df.copy())
 
-        # plotter = Plotter()
-        # pair_mapping = plotter.get_pair_mapping()
+        plotter = Plotter()
+        pair_mapping = plotter.get_pair_mapping()
 
-        # for _, (filename, df) in dfs.items():
-        #     plotter.save_plot(filename, df)
+        for _, (filename, df) in dfs.items():
+            plotter.save_plot(filename, df)
 
-        # for pair in pair_mapping.values():
-        #     dend1, dend2 = pair
-        #     dend1, dend2 = str(dend1), str(dend2)
+        for pair in pair_mapping.values():
+            dend1, dend2 = pair
+            dend1, dend2 = str(dend1), str(dend2)
 
-        #     if dend1 in dfs and dend2 in dfs:
-        #         plotter.save_plot_pair(dfs[str(dend1)], dfs[str(dend2)])
+            if dend1 in dfs and dend2 in dfs:
+                plotter.save_plot_pair(dfs[str(dend1)], dfs[str(dend2)])
 
     def _initial_formatting(self, df):
         # Change column names
@@ -92,7 +93,7 @@ class DataFormatter:
         df = df.iloc[:, :-1]
         return df
 
-    def _fix_timestamp(self, df: pd.DataFrame):
+    def _fix_timestamp(self, df: pd.DataFrame, dendrometer_id):
         date_time_combined = pd.to_datetime(
             df[("Timestamp", "date")] +
             ' ' +
@@ -103,8 +104,8 @@ class DataFormatter:
                 ("Timestamp", "time")], inplace=True)
 
         df.insert(2, "Time", date_time_combined)
-        print("--------------------------------------------------------")
-        print(df.head(2))
+        # print("--------------------------------------------------------")
+        # print(df.head(2))
 
         """
         dt.tz_localize(tz="GMT"): assigns the current time stamp to be in GMT
@@ -115,9 +116,11 @@ class DataFormatter:
                        .dt.tz_localize(tz="GMT") \
                        .dt.tz_convert(tz="America/Los_Angeles") \
                        .dt.tz_localize(None)
-        print(df.head(2))
-        # print(df.dtypes)
-        print("--------------------------------------------------------")
+        # print(df.head(2))
+        # print("--------------------------------------------------------")
+        if dendrometer_id in self.deployment_time_map:
+            print(self.get_time_difference(
+                df, self.deployment_time_map[dendrometer_id]))
 
         return df
 
@@ -177,9 +180,7 @@ class DataFormatter:
 def main():
     formatter = DataFormatter()
     files = formatter.find_valid_files()
-    # formatter.get_time_differences(files)
     formatter.l1_formatting(files)
-    # formatter.load_deployment_time()
 
 
 if __name__ == "__main__":
