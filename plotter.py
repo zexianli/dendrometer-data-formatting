@@ -39,8 +39,8 @@ class Plotter:
         fig1.set_title(plot_title)
 
         if "Adjusted Time" in df.columns:
-            fig1.plot(df["Time"], df[('AS5311', 'Serial_Value')])
-            fig1.plot(df["Time"], df['Calculated Serial'])
+            fig1.plot(df["Adjusted Time"], df[('AS5311', 'Serial_Value')])
+            fig1.plot(df["Adjusted Time"], df['Calculated Serial'])
         else:
             fig1.plot(df["Time"], df[('AS5311', 'Serial_Value')])
             fig1.plot(df["Time"], df['Calculated Serial'])
