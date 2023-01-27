@@ -52,14 +52,19 @@ class DataFormatter:
 
         return folder_file_map
 
-    def get_time_difference(self, df: pd.DataFrame, deploy_time: pd.Timestamp):
-        return df.head(1)["Time"] - deploy_time
+    def get_time_delta(self, df: pd.DataFrame, deploy_time: pd.Timestamp):
+        # print(type(df.iloc[0]["Time"].item()))
+        print("-", deploy_time, df.iloc[0]["Time"].item())
+        print("- Time delta:", pd.Timedelta(
+            deploy_time - df.iloc[0]["Time"].item()))
+        return pd.Timedelta(deploy_time - df.iloc[0]["Time"].item())
 
     def l1_formatting(self, folders: dict):
-        dfs = {}
+        dfs = {}  # Dataframes
         self.load_deployment_time()
 
         for folder in folders.keys():
+            print("-------------------------------------------")
             print(folder)
             for file in folders[folder]:
                 dendrometer_id = str(file).split("/")[-2]
@@ -70,6 +75,8 @@ class DataFormatter:
                 df = self.adjust_flow(df)
 
                 dfs[dendrometer_id] = (file, df.copy())
+                print(df.head())
+            print("-------------------------------------------")
 
         plotter = Plotter()
         pair_mapping = plotter.get_pair_mapping()
@@ -104,30 +111,30 @@ class DataFormatter:
                 ("Timestamp", "time")], inplace=True)
 
         df.insert(2, "Time", date_time_combined)
-        # print("--------------------------------------------------------")
-        # print(df.head(2))
 
         """
         dt.tz_localize(tz="GMT"): assigns the current time stamp to be in GMT
-        dt.tz_convert(tz="America/Los_Angeles"): converts GMT to Pacific Time
+        dt.tz_convert(tz="America/Los_Angeles"): converts GMT to Pacific Daylight Time (Data is from summer)
         dt.tz_localize(None): strips it back down to naive timestamp so it doesn't have the -7 at the end
         """
         df["Time"] = pd.to_datetime(df["Time"])  \
                        .dt.tz_localize(tz="GMT") \
                        .dt.tz_convert(tz="America/Los_Angeles") \
                        .dt.tz_localize(None)
-        # print(df.head(2))
-        # print("--------------------------------------------------------")
-        if dendrometer_id in self.deployment_time_map:
-            print(self.get_time_difference(
-                df, self.deployment_time_map[dendrometer_id]))
 
+        if dendrometer_id in self.deployment_time_map:
+            time_delta = self.get_time_delta(
+                df,
+                self.deployment_time_map[dendrometer_id]
+            )
+
+            df.insert(3, "Adjuted Time", df["Time"] + time_delta)
         return df
 
     def adjust_flow(self, df: pd.DataFrame) -> pd.DataFrame:
         prev_idx, prev_serial = 0, df.iloc[0][('AS5311', 'Serial_Value')]
         initial, wrap = df.iloc[0][('AS5311', 'Serial_Value')], 0
-        df.at[0, 'Calculated'] = 0
+        df.at[0, 'Calculated Serial'] = 0
 
         cur_idx = 1
         while cur_idx < df.shape[0]:
@@ -141,19 +148,19 @@ class DataFormatter:
             if abs(change) > 2000:
                 # Wrap up
                 if change < 0:
-                    print("-- Wrapped up", prev_serial, cur_serial, change)
+                    print("  -- Wrapped up", prev_serial, cur_serial, change)
                     wrap += 4095
 
                 # Wrap down
                 elif change > 0:
-                    print("-- Wrapped down", prev_serial, cur_serial, change)
+                    print("  -- Wrapped down", prev_serial, cur_serial, change)
                     wrap -= 4095
 
             # Calculate the displacement data
             calculated_serial_data = cur_serial + wrap - initial
 
             # Data to use in the plot
-            df.at[cur_idx, 'Calculated'] = calculated_serial_data
+            df.at[cur_idx, 'Calculated Serial'] = calculated_serial_data
 
             prev_serial = cur_serial
             prev_idx = cur_idx
